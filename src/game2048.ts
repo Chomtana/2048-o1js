@@ -15,7 +15,7 @@ import {
   Signature,
   Struct,
 } from 'o1js';
-import { combineBits } from './utils';
+import { combineBits, numberToBits } from './utils';
 
 export { Board, TicTacToe };
 
@@ -56,15 +56,36 @@ class Board {
   }
 
   serialize(): Field {
-    let isPlayed = [];
-    let player = [];
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        isPlayed.push(this.board[i][j].isSome);
-        player.push(this.board[i][j].value);
+    let bits: number[] = [];
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = 0; j < BOARD_COLS; j++) {
+        bits = bits.concat(
+          numberToBits(Number(this.board[i][j].value.toBigInt()), 5)
+        )
       }
     }
-    return Field.fromBits(isPlayed.concat(player));
+    return Field.fromBits(bits.map(x => Boolean(x)));
+  }
+
+  newTile(x: Field, y: Field, num: UInt64) {
+    num.assertGreaterThan(new UInt64(0));
+
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = 0; j < BOARD_COLS; j++) {
+        // is this the cell the player wants to play?
+        const toUpdate = x.equals(new Field(i)).and(y.equals(new Field(j)));
+
+        // make sure we can play there
+        toUpdate.and(this.board[i][j].value.equals(0)).assertEquals(true);
+
+        // copy the board (or update if this is the cell the player wants to play)
+        this.board[i][j] = Provable.if(
+          toUpdate,
+          new UInt64(num),
+          this.board[i][j]
+        );
+      }
+    }
   }
 
   update(x: Field, y: Field, playerToken: Bool) {
