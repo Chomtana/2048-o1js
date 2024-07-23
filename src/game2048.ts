@@ -10,7 +10,7 @@ import {
   state,
   method,
   Bool,
-  UInt64,
+  UInt32,
   Provable,
   Signature,
   Struct,
@@ -38,7 +38,7 @@ function Optional<T>(type: Provable<T>) {
 class OptionalBool extends Optional(Bool) {}
 
 class Board {
-  board: UInt64[][];
+  board: UInt32[][];
 
   constructor(serializedBoard: Field) {
     const bits = serializedBoard.toBits(BOARD_ROWS * BOARD_COLS * NUM_BITS);
@@ -48,7 +48,7 @@ class Board {
       for (let j = 0; j < BOARD_COLS; j++) {
         const pos = i * BOARD_COLS + j
         const numBits = bits.slice(pos * NUM_BITS, pos * NUM_BITS + NUM_BITS).map(x => x ? 1 : 0);
-        row.push(new UInt64(combineBits(numBits)));
+        row.push(new UInt32(combineBits(numBits)));
       }
       board.push(row);
     }
@@ -67,8 +67,8 @@ class Board {
     return Field.fromBits(bits.map(x => Boolean(x)));
   }
 
-  newTile(x: Field, y: Field, num: UInt64) {
-    num.assertGreaterThan(new UInt64(0));
+  newTile(x: Field, y: Field, num: UInt32) {
+    num.assertGreaterThan(new UInt32(0));
 
     for (let i = 0; i < BOARD_ROWS; i++) {
       for (let j = 0; j < BOARD_COLS; j++) {
@@ -76,93 +76,80 @@ class Board {
         const toUpdate = x.equals(new Field(i)).and(y.equals(new Field(j)));
 
         // make sure we can play there
-        toUpdate.and(this.board[i][j].value.equals(0)).assertEquals(true);
+        toUpdate.and(this.board[i][j].equals(UInt32.zero)).assertEquals(true);
 
         // copy the board (or update if this is the cell the player wants to play)
         this.board[i][j] = Provable.if(
           toUpdate,
-          new UInt64(num),
+          new UInt32(num),
           this.board[i][j]
         );
       }
     }
   }
 
-  update(x: Field, y: Field, playerToken: Bool) {
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        // is this the cell the player wants to play?
-        const toUpdate = x.equals(new Field(i)).and(y.equals(new Field(j)));
+  // update(x: Field, y: Field, playerToken: Bool) {
+  //   for (let i = 0; i < 3; i++) {
+  //     for (let j = 0; j < 3; j++) {
+  //       // is this the cell the player wants to play?
+  //       const toUpdate = x.equals(new Field(i)).and(y.equals(new Field(j)));
 
-        // make sure we can play there
-        toUpdate.and(this.board[i][j].isSome).assertEquals(false);
+  //       // make sure we can play there
+  //       toUpdate.and(this.board[i][j].isSome).assertEquals(false);
 
-        // copy the board (or update if this is the cell the player wants to play)
-        this.board[i][j] = Provable.if(
-          toUpdate,
-          new OptionalBool(true, playerToken),
-          this.board[i][j]
-        );
-      }
-    }
-  }
+  //       // copy the board (or update if this is the cell the player wants to play)
+  //       this.board[i][j] = Provable.if(
+  //         toUpdate,
+  //         new OptionalBool(true, playerToken),
+  //         this.board[i][j]
+  //       );
+  //     }
+  //   }
+  // }
 
   printState() {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < BOARD_ROWS; i++) {
       let row = '| ';
-      for (let j = 0; j < 3; j++) {
-        let token = '_';
-        if (this.board[i][j].isSome.toBoolean()) {
-          token = this.board[i][j].value.toBoolean() ? 'X' : 'O';
-        }
-
+      for (let j = 0; j < BOARD_COLS; j++) {
+        let token = this.board[i][j].toString().padStart(4, ' ')
         row += token + ' | ';
       }
+      row += ' |'
       console.log(row);
     }
     console.log('---\n');
   }
 
-  checkWinner(): Bool {
-    let won = new Bool(false);
+  hasNextMove(): Bool {
+    let has = new Bool(false);
 
-    // check rows
-    for (let i = 0; i < 3; i++) {
-      let row = this.board[i][0].isSome;
-      row = row.and(this.board[i][1].isSome);
-      row = row.and(this.board[i][2].isSome);
-      row = row.and(this.board[i][0].value.equals(this.board[i][1].value));
-      row = row.and(this.board[i][1].value.equals(this.board[i][2].value));
-      won = won.or(row);
+    // check missing cell
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = 0; j < BOARD_COLS; j++) {
+        let row = this.board[i][j];
+        has = has.or(row.equals(UInt32.zero))
+      }
     }
 
-    // check cols
-    for (let i = 0; i < 3; i++) {
-      let col = this.board[0][i].isSome;
-      col = col.and(this.board[1][i].isSome);
-      col = col.and(this.board[2][i].isSome);
-      col = col.and(this.board[0][i].value.equals(this.board[1][i].value));
-      col = col.and(this.board[1][i].value.equals(this.board[2][i].value));
-      won = won.or(col);
+    // check adjacent rows
+    for (let j = 0; j < BOARD_COLS; j++) {
+      for (let i = 0; i < BOARD_ROWS - 1; i++) {
+        let a = this.board[i][j]
+        let b = this.board[i+1][j]
+        has = has.or(a.equals(b))
+      }
     }
 
-    // check diagonals
-    let diag1 = this.board[0][0].isSome;
-    diag1 = diag1.and(this.board[1][1].isSome);
-    diag1 = diag1.and(this.board[2][2].isSome);
-    diag1 = diag1.and(this.board[0][0].value.equals(this.board[1][1].value));
-    diag1 = diag1.and(this.board[1][1].value.equals(this.board[2][2].value));
-    won = won.or(diag1);
+    // check adjacent cols
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = 0; j < BOARD_COLS - 1; j++) {
+        let a = this.board[i][j]
+        let b = this.board[i][j+1]
+        has = has.or(a.equals(b))
+      }
+    }
 
-    let diag2 = this.board[0][2].isSome;
-    diag2 = diag2.and(this.board[1][1].isSome);
-    diag2 = diag2.and(this.board[0][2].isSome);
-    diag2 = diag2.and(this.board[0][2].value.equals(this.board[1][1].value));
-    diag2 = diag2.and(this.board[1][1].value.equals(this.board[2][0].value));
-    won = won.or(diag2);
-
-    //
-    return won;
+    return has
   }
 }
 
