@@ -90,13 +90,13 @@ class Board {
     return Field.fromBits(bits);
   }
 
-  newTile(x: Field, y: Field, num: UInt32) {
+  newTile(r: Field, c: Field, num: UInt32) {
     num.assertGreaterThan(new UInt32(0));
 
     for (let i = 0; i < BOARD_ROWS; i++) {
       for (let j = 0; j < BOARD_COLS; j++) {
         // is this the cell the player wants to play?
-        const toUpdate = x.equals(new Field(i)).and(y.equals(new Field(j)));
+        const toUpdate = r.equals(new Field(i)).and(c.equals(new Field(j)));
 
         // make sure we can play there
         toUpdate.and(this.board[i][j].equals(UInt32.zero)).assertEquals(true);
@@ -270,40 +270,145 @@ class Board {
 class Game2048 extends SmartContract {
   // The board is serialized as a single field element
   @state(Field) board = State<Field>();
-  // false -> player 1 | true -> player 2
-  @state(Bool) nextIsPlayer2 = State<Bool>();
   // defaults to false, set to true when a player wins
   @state(Bool) gameDone = State<Bool>();
   // the two players who are allowed to play
-  @state(PublicKey) player1 = State<PublicKey>();
-  @state(PublicKey) player2 = State<PublicKey>();
+  @state(PublicKey) player = State<PublicKey>();
 
   init() {
     super.init();
     this.gameDone.set(Bool(true));
-    this.player1.set(PublicKey.empty());
-    this.player2.set(PublicKey.empty());
+    this.player.set(PublicKey.empty());
   }
 
-  @method async startGame(player1: PublicKey, player2: PublicKey) {
+  @method async startGame(player: PublicKey) {
     // you can only start a new game if the current game is done
     this.gameDone.requireEquals(Bool(true));
     this.gameDone.set(Bool(false));
     // set players
-    this.player1.set(player1);
-    this.player2.set(player2);
+    this.player.set(player);
     // reset board
     this.board.set(Field(0));
-    // player 1 starts
-    this.nextIsPlayer2.set(Bool(false));
   }
 
-  // board:
-  //  x  0  1  2
-  // y +----------
-  // 0 | x  x  x
-  // 1 | x  x  x
-  // 2 | x  x  x
+  setGameDone(board: Board) {
+    const won = board.hasNextMove();
+    this.gameDone.set(won.not());
+  }
+
+  assertSignature(
+    pubkey: PublicKey,
+    signature: Signature,
+    action: Field,
+    value: Field,
+  ) {
+    // 1. if the game is already finished, abort.
+    this.gameDone.requireEquals(Bool(false)); // precondition on this.gameDone
+
+    // 2. ensure that we know the private key associated to the public key
+    //    and that our public key is known to the zkApp
+
+    // ensure player owns the associated private key
+    signature.verify(pubkey, [action, value]).assertTrue();
+
+    // ensure player is valid
+    const player = this.player.getAndRequireEquals();
+    pubkey.equals(player).assertTrue();
+
+    // 3. get and deserialize the board
+    this.board.requireEquals(this.board.get()); // precondition that links this.board.get() to the actual on-chain state
+    let board = new Board(this.board.get());
+
+    return board
+  }
+
+  @method async addTile(
+    pubkey: PublicKey,
+    signature: Signature,
+    r: Field,
+    c: Field,
+  ) {
+    const board = this.assertSignature(
+      pubkey,
+      signature,
+      Field(2),
+      r.mul(Field(BOARD_COLS)).add(c)
+    )
+
+    board.newTile(r, c, UInt32.one)
+    this.board.set(board.serialize())
+
+    this.setGameDone(board)
+  }
+
+  @method async moveUp(
+    pubkey: PublicKey,
+    signature: Signature,
+  ) {
+    const board = this.assertSignature(
+      pubkey,
+      signature,
+      Field(1),
+      Field(0)
+    )
+
+    board.moveUp()
+    this.board.set(board.serialize())
+
+    this.setGameDone(board)
+  }
+
+  @method async moveDown(
+    pubkey: PublicKey,
+    signature: Signature,
+  ) {
+    const board = this.assertSignature(
+      pubkey,
+      signature,
+      Field(1),
+      Field(1)
+    )
+
+    board.moveDown()
+    this.board.set(board.serialize())
+
+    this.setGameDone(board)
+  }
+
+  @method async moveLeft(
+    pubkey: PublicKey,
+    signature: Signature,
+  ) {
+    const board = this.assertSignature(
+      pubkey,
+      signature,
+      Field(1),
+      Field(2)
+    )
+
+    board.moveLeft()
+    this.board.set(board.serialize())
+
+    this.setGameDone(board)
+  }
+
+  @method async moveRight(
+    pubkey: PublicKey,
+    signature: Signature,
+  ) {
+    const board = this.assertSignature(
+      pubkey,
+      signature,
+      Field(1),
+      Field(3)
+    )
+
+    board.moveRight()
+    this.board.set(board.serialize())
+
+    this.setGameDone(board)
+  }
+
   @method async play(
     pubkey: PublicKey,
     signature: Signature,
@@ -320,24 +425,10 @@ class Game2048 extends SmartContract {
     signature.verify(pubkey, [x, y]).assertTrue();
 
     // ensure player is valid
-    const player1 = this.player1.getAndRequireEquals();
-    const player2 = this.player2.getAndRequireEquals();
-    Bool.or(pubkey.equals(player1), pubkey.equals(player2)).assertTrue();
+    const player = this.player.getAndRequireEquals();
+    pubkey.equals(player).assertTrue();
 
-    // 3. Make sure that its our turn,
-    //    and set the state for the next player
-
-    // get player token
-    const player = pubkey.equals(player2); // player 1 is false, player 2 is true
-
-    // ensure its their turn
-    const nextPlayer = this.nextIsPlayer2.getAndRequireEquals();
-    nextPlayer.assertEquals(player);
-
-    // set the next player
-    this.nextIsPlayer2.set(player.not());
-
-    // 4. get and deserialize the board
+    // 3. get and deserialize the board
     this.board.requireEquals(this.board.get()); // precondition that links this.board.get() to the actual on-chain state
     let board = new Board(this.board.get());
 
