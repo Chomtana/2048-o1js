@@ -17,7 +17,7 @@ import {
 } from 'o1js';
 import { combineBits, numberToBits } from './utils';
 
-export { Board, TicTacToe };
+export { Board, Game2048 };
 
 const BOARD_ROWS = 4
 const BOARD_COLS = 4
@@ -47,24 +47,47 @@ class Board {
       let row = [];
       for (let j = 0; j < BOARD_COLS; j++) {
         const pos = i * BOARD_COLS + j
-        const numBits = bits.slice(pos * NUM_BITS, pos * NUM_BITS + NUM_BITS).map(x => x ? 1 : 0);
-        row.push(new UInt32(combineBits(numBits)));
+        const numBits = bits.slice(pos * NUM_BITS, pos * NUM_BITS + NUM_BITS)
+        row.push(new UInt32(this.combineBits(numBits)));
       }
       board.push(row);
     }
     this.board = board;
   }
 
+  combineBits(bits: Bool[]): UInt32 {
+    let result = new UInt32(1)
+    for (let i = 0; i < NUM_BITS; i++) {
+      result = result.add(
+        Provable.if(
+          bits[NUM_BITS - i - 1],
+          new UInt32(1 << i),
+          UInt32.zero,
+        )
+      )
+    }
+    return result
+  }
+
+  numberToBits(num: UInt32): Bool[] {
+    let bits: Bool[] = [];
+    for (let i = NUM_BITS - 1; i >= 0; i--) {
+      bits.push(num.greaterThanOrEqual(new UInt32(1 << i)))
+      num = num.mod(1 << i)
+    }
+    return bits
+  }
+
   serialize(): Field {
-    let bits: number[] = [];
+    let bits: Bool[] = [];
     for (let i = 0; i < BOARD_ROWS; i++) {
       for (let j = 0; j < BOARD_COLS; j++) {
         bits = bits.concat(
-          numberToBits(Number(this.board[i][j].value.toBigInt()), 5)
+          this.numberToBits(this.board[i][j])
         )
       }
     }
-    return Field.fromBits(bits.map(x => Boolean(x)));
+    return Field.fromBits(bits);
   }
 
   newTile(x: Field, y: Field, num: UInt32) {
@@ -153,7 +176,7 @@ class Board {
   }
 }
 
-class TicTacToe extends SmartContract {
+class Game2048 extends SmartContract {
   // The board is serialized as a single field element
   @state(Field) board = State<Field>();
   // false -> player 1 | true -> player 2
@@ -237,11 +260,11 @@ class TicTacToe extends SmartContract {
       .or(y.equals(Field(2)))
       .assertTrue();
 
-    board.update(x, y, player);
+    // board.update(x, y, player);
     this.board.set(board.serialize());
 
     // 6. did I just win? If so, update the state as well
-    const won = board.checkWinner();
-    this.gameDone.set(won);
+    // const won = board.checkWinner();
+    // this.gameDone.set(won);
   }
 }
