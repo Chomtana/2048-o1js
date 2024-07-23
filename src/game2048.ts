@@ -174,6 +174,97 @@ class Board {
 
     return has
   }
+
+  moveTile(c: [number, number], a: [number, number], breakLoop: Bool) {
+    const curr = this.board[c[0]][c[1]]
+    const adj = this.board[a[0]][a[1]]
+
+    const currEmpty = curr.equals(UInt32.zero)
+    const adjEmpty = adj.equals(UInt32.zero)
+    const eq = curr.equals(adj)
+
+    this.board[c[0]][c[1]] = Provable.if(
+      currEmpty.or(breakLoop),
+      this.board[c[0]][c[1]],
+      Provable.if(
+        adjEmpty.or(eq),
+        UInt32.zero,
+        this.board[c[0]][c[1]],
+      )
+    )
+
+    this.board[a[0]][a[1]] = Provable.if(
+      currEmpty.or(breakLoop),
+      this.board[a[0]][a[1]],
+      Provable.if(
+        adjEmpty,
+        this.board[c[0]][c[1]],
+        Provable.if(
+          eq,
+          this.board[c[0]][c[1]].add(UInt32.one),
+          this.board[a[0]][a[1]],
+        )
+      )
+    )
+
+    return adjEmpty.not()
+  }
+
+  moveUp() {
+    // Loop will be break if adj is not empty
+    let breakLoop = new Bool(false);
+
+    for (let j = 0; j < BOARD_COLS; j++) {
+      for (let i = 1; i < BOARD_ROWS; i++) {
+        const k = i;
+        for (let m = k; m > 0; m--) {
+          breakLoop = this.moveTile([m, j], [m-1, j], breakLoop)
+        }
+      }
+    }
+  }
+
+  moveDown() {
+    // Loop will be break if adj is not empty
+    let breakLoop = new Bool(false);
+
+    for (let j = 0; j < BOARD_COLS; j++) {
+      for (let i = BOARD_ROWS - 2; i >= 0; i--) {
+        const k = i;
+        for (let m = k; m < BOARD_ROWS - 1; m++) {
+          breakLoop = this.moveTile([m, j], [m+1, j], breakLoop)
+        }
+      }
+    }
+  }
+
+  moveLeft() {
+    // Loop will be break if adj is not empty
+    let breakLoop = new Bool(false);
+
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = 1; j < BOARD_COLS; j++) {
+        const k = j;
+        for (let m = k; m > 0; m--) {
+          breakLoop = this.moveTile([i, m], [i, m-1], breakLoop)
+        }
+      }
+    }
+  }
+
+  moveRight() {
+    // Loop will be break if adj is not empty
+    let breakLoop = new Bool(false);
+
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = BOARD_COLS - 2; j >= 0; j--) {
+        const k = j;
+        for (let m = k; m < BOARD_COLS - 1; m++) {
+          breakLoop = this.moveTile([i, m], [i, m+1], breakLoop)
+        }
+      }
+    }
+  }
 }
 
 class Game2048 extends SmartContract {
