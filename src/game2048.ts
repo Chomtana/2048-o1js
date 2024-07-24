@@ -15,7 +15,6 @@ import {
   Signature,
   Struct,
 } from 'o1js';
-import { combineBits, numberToBits } from './utils';
 
 export { Board, Game2048 };
 
@@ -56,7 +55,7 @@ class Board {
   }
 
   combineBits(bits: Bool[]): UInt32 {
-    let result = new UInt32(1)
+    let result = new UInt32(0)
     for (let i = 0; i < NUM_BITS; i++) {
       result = result.add(
         Provable.if(
@@ -98,8 +97,8 @@ class Board {
         // is this the cell the player wants to play?
         const toUpdate = r.equals(new Field(i)).and(c.equals(new Field(j)));
 
-        // make sure we can play there
-        toUpdate.and(this.board[i][j].equals(UInt32.zero)).assertEquals(true);
+        // make sure we can add a tile there
+        toUpdate.implies(this.board[i][j].equals(UInt32.zero)).assertEquals(true);
 
         // copy the board (or update if this is the cell the player wants to play)
         this.board[i][j] = Provable.if(
@@ -110,25 +109,6 @@ class Board {
       }
     }
   }
-
-  // update(x: Field, y: Field, playerToken: Bool) {
-  //   for (let i = 0; i < 3; i++) {
-  //     for (let j = 0; j < 3; j++) {
-  //       // is this the cell the player wants to play?
-  //       const toUpdate = x.equals(new Field(i)).and(y.equals(new Field(j)));
-
-  //       // make sure we can play there
-  //       toUpdate.and(this.board[i][j].isSome).assertEquals(false);
-
-  //       // copy the board (or update if this is the cell the player wants to play)
-  //       this.board[i][j] = Provable.if(
-  //         toUpdate,
-  //         new OptionalBool(true, playerToken),
-  //         this.board[i][j]
-  //       );
-  //     }
-  //   }
-  // }
 
   printState() {
     for (let i = 0; i < BOARD_ROWS; i++) {
@@ -407,6 +387,20 @@ class Game2048 extends SmartContract {
     this.board.set(board.serialize())
 
     this.setGameDone(board)
+  }
+
+  @method async endGame(
+    pubkey: PublicKey,
+    signature: Signature,
+  ) {
+    this.assertSignature(
+      pubkey,
+      signature,
+      Field(3),
+      Field(0)
+    )
+
+    this.gameDone.set(Bool(true))
   }
 
   @method async play(
