@@ -110,19 +110,6 @@ class Board {
     }
   }
 
-  printState() {
-    for (let i = 0; i < BOARD_ROWS; i++) {
-      let row = '| ';
-      for (let j = 0; j < BOARD_COLS; j++) {
-        let token = this.board[i][j].toString().padStart(4, ' ')
-        row += token + ' | ';
-      }
-      row += ' |'
-      console.log(row);
-    }
-    console.log('---\n');
-  }
-
   hasNextMove(): Bool {
     let has = new Bool(false);
 
@@ -163,6 +150,20 @@ class Board {
     const adjEmpty = adj.equals(UInt32.zero)
     const eq = curr.equals(adj)
 
+    this.board[a[0]][a[1]] = Provable.if(
+      currEmpty.or(breakLoop),
+      this.board[a[0]][a[1]],
+      Provable.if(
+        adjEmpty,
+        this.board[c[0]][c[1]],
+        Provable.if(
+          eq,
+          this.board[a[0]][a[1]].add(UInt32.one),
+          this.board[a[0]][a[1]],
+        )
+      )
+    )
+
     this.board[c[0]][c[1]] = Provable.if(
       currEmpty.or(breakLoop),
       this.board[c[0]][c[1]],
@@ -173,19 +174,7 @@ class Board {
       )
     )
 
-    this.board[a[0]][a[1]] = Provable.if(
-      currEmpty.or(breakLoop),
-      this.board[a[0]][a[1]],
-      Provable.if(
-        adjEmpty,
-        this.board[c[0]][c[1]],
-        Provable.if(
-          eq,
-          this.board[c[0]][c[1]].add(UInt32.one),
-          this.board[a[0]][a[1]],
-        )
-      )
-    )
+    // console.log(c, a, this.board[c[0]][c[1]].toString(), this.board[a[0]][a[1]].toString(), currEmpty.toString(), adjEmpty.toString(), eq.toString())
 
     return adjEmpty.not()
   }
@@ -200,6 +189,7 @@ class Board {
         for (let m = k; m > 0; m--) {
           breakLoop = this.moveTile([m, j], [m-1, j], breakLoop)
         }
+        breakLoop = new Bool(false)
       }
     }
   }
@@ -214,6 +204,7 @@ class Board {
         for (let m = k; m < BOARD_ROWS - 1; m++) {
           breakLoop = this.moveTile([m, j], [m+1, j], breakLoop)
         }
+        breakLoop = new Bool(false)
       }
     }
   }
@@ -228,6 +219,7 @@ class Board {
         for (let m = k; m > 0; m--) {
           breakLoop = this.moveTile([i, m], [i, m-1], breakLoop)
         }
+        breakLoop = new Bool(false)
       }
     }
   }
@@ -242,8 +234,34 @@ class Board {
         for (let m = k; m < BOARD_COLS - 1; m++) {
           breakLoop = this.moveTile([i, m], [i, m+1], breakLoop)
         }
+        breakLoop = new Bool(false)
       }
     }
+  }
+
+  printState() {
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      let row = '| ';
+      for (let j = 0; j < BOARD_COLS; j++) {
+        let token = this.board[i][j].toString().padStart(4, ' ')
+        row += token + ' | ';
+      }
+      row += ' |'
+      console.log(row);
+    }
+    console.log('---\n');
+  }
+
+  toArray(): number[][] {
+    const result: number[][] = []
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      const row: number[] = []
+      for (let j = 0; j < BOARD_COLS; j++) {
+        row.push(parseInt(this.board[i][j].toString()))
+      }
+      result.push(row)
+    }
+    return result
   }
 }
 

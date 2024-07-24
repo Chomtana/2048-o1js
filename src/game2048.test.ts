@@ -32,7 +32,77 @@ const TESTCASES = [
       [1, 0, 0, 0],
     ],
     ended: false,
-  }
+  },
+  {
+    name: 'Can end game',
+    commands: [
+      ...TILE_L,
+      [3, 0],
+    ],
+    result: [
+      [1, 1, 1, 1],
+      [1, 0, 0, 0],
+      [1, 0, 0, 0],
+      [1, 0, 0, 0],
+    ],
+    ended: true,
+  },
+  {
+    name: 'Move Up',
+    commands: [
+      ...TILE_L,
+      [1, 0],
+    ],
+    result: [
+      [2, 1, 1, 1],
+      [2, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ],
+    ended: false,
+  },
+  {
+    name: 'Move Down',
+    commands: [
+      ...TILE_L,
+      [1, 1],
+    ],
+    result: [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [2, 0, 0, 0],
+      [2, 1, 1, 1],
+    ],
+    ended: false,
+  },
+  {
+    name: 'Move Left',
+    commands: [
+      ...TILE_L,
+      [1, 2],
+    ],
+    result: [
+      [2, 2, 0, 0],
+      [1, 0, 0, 0],
+      [1, 0, 0, 0],
+      [1, 0, 0, 0],
+    ],
+    ended: false,
+  },
+  {
+    name: 'Move Right',
+    commands: [
+      ...TILE_L,
+      [1, 3],
+    ],
+    result: [
+      [0, 0, 2, 2],
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+    ],
+    ended: false,
+  },
 ]
 
 async function deployZKApp(player: Mina.TestPublicKey, playerKey: PrivateKey, zkAppAddress: PublicKey, zkAppPrivateKey: PrivateKey) {
@@ -45,6 +115,16 @@ async function deployZKApp(player: Mina.TestPublicKey, playerKey: PrivateKey, zk
   await txn.prove();
   await txn.sign([zkAppPrivateKey, playerKey]).send();
   return zkApp
+}
+
+function printBoard(zkApp: Game2048) {
+  const board = new Board(zkApp.board.get())
+  board.printState()
+}
+
+function assertBoard(zkApp: Game2048, expected: number[][]) {
+  const board = new Board(zkApp.board.get())
+  expect(board.toArray()).toEqual(expected)
 }
 
 describe('Game 2048', () => {
@@ -74,14 +154,52 @@ describe('Game 2048', () => {
     it(TESTCASE.name, async () => {
       const zkApp = await deployZKApp(player, playerKey, zkAppAddress, zkAppPrivateKey)
 
-      const board = new Board(zkApp.board.get())
-      board.printState()
-
       for (const command of TESTCASE.commands) {
         switch (command[0]) {
           case 1: {
-            switch (command[1]) {
+            const signature = Signature.create(playerKey, [
+              Field(1),
+              Field(command[1] as number),
+            ]);
 
+            switch (command[1]) {
+              case 0: {
+                const txn = await Mina.transaction(player, async () => {
+                  zkApp.moveUp(player, signature);
+                });
+                await txn.prove();
+                await txn.sign([playerKey]).send();
+                break;
+              }
+
+              case 1: {
+                const txn = await Mina.transaction(player, async () => {
+                  zkApp.moveDown(player, signature);
+                });
+                await txn.prove();
+                await txn.sign([playerKey]).send();
+                break;
+              }
+
+              case 2: {
+                const txn = await Mina.transaction(player, async () => {
+                  zkApp.moveLeft(player, signature);
+                });
+                await txn.prove();
+                await txn.sign([playerKey]).send();
+                break;
+              }
+
+              case 3: {
+                const txn = await Mina.transaction(player, async () => {
+                  zkApp.moveRight(player, signature);
+                });
+                await txn.prove();
+                await txn.sign([playerKey]).send();
+                break;
+              }
+
+              default: throw new Error('Invalid command')
             }
             break;
           }
@@ -103,12 +221,29 @@ describe('Game 2048', () => {
           }
 
           case 3: {
+            if (command[1] !== 0) {
+              throw new Error('Invalid command')
+            }
+
+            const signature = Signature.create(playerKey, [
+              Field(3),
+              Field(0),
+            ]);
+            const txn = await Mina.transaction(player, async () => {
+              zkApp.endGame(player, signature);
+            });
+            await txn.prove();
+            await txn.sign([playerKey]).send();
+
             break;
           }
 
           default: throw new Error('Invalid command')
         }
       }
+
+      expect(zkApp.gameDone.get()).toEqual(Bool(TESTCASE.ended))
+      assertBoard(zkApp, TESTCASE.result)
     })
   }
 
