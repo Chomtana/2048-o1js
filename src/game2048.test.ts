@@ -103,6 +103,66 @@ const TESTCASES = [
     ],
     ended: false,
   },
+  {
+    name: 'Move Up X2',
+    commands: [
+      ...TILE_L,
+      [1, 0],
+      [1, 0],
+    ],
+    result: [
+      [3, 1, 1, 1],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ],
+    ended: false,
+  },
+  {
+    name: 'Move Down X2',
+    commands: [
+      ...TILE_L,
+      [1, 1],
+      [1, 1],
+    ],
+    result: [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [3, 1, 1, 1],
+    ],
+    ended: false,
+  },
+  {
+    name: 'Move Left X2',
+    commands: [
+      ...TILE_L,
+      [1, 2],
+      [1, 2],
+    ],
+    result: [
+      [3, 0, 0, 0],
+      [1, 0, 0, 0],
+      [1, 0, 0, 0],
+      [1, 0, 0, 0],
+    ],
+    ended: false,
+  },
+  {
+    name: 'Move Right X2',
+    commands: [
+      ...TILE_L,
+      [1, 3],
+      [1, 3],
+    ],
+    result: [
+      [0, 0, 0, 3],
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+      [0, 0, 0, 1],
+    ],
+    ended: false,
+  },
 ]
 
 async function deployZKApp(player: Mina.TestPublicKey, playerKey: PrivateKey, zkAppAddress: PublicKey, zkAppPrivateKey: PrivateKey) {
