@@ -81,7 +81,7 @@ while (true) {
   let b = zkApp.board.get();
   new Board(b).printState();
 
-  if (zkApp.gameDone.get()) {
+  if (zkApp.gameDone.get().toBoolean()) {
     console.log('Game Over')
     break
   }
