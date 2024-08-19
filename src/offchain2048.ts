@@ -239,15 +239,11 @@ class Board {
     }
   }
 
-  // Debugging functions
-
   printState() {
     for (let i = 0; i < BOARD_ROWS; i++) {
       let row = '| ';
       for (let j = 0; j < BOARD_COLS; j++) {
-        let num = 1 << parseInt(this.board[i][j].toString())
-        if (num == 1) num = 0
-        let token = num.toString().padStart(4, ' ')
+        let token = this.board[i][j].toString().padStart(4, ' ')
         row += token + ' | ';
       }
       row += ' |'
@@ -266,24 +262,6 @@ class Board {
       result.push(row)
     }
     return result
-  }
-
-  randomEmptyTile(): [number, number] {
-    const emptyTiles: [number, number][] = []
-
-    const tiles = this.toArray()
-
-    for (let i = 0; i < BOARD_ROWS; i++) {
-      for (let j = 0; j < BOARD_COLS; j++) {
-        if (!tiles[i][j]) {
-          emptyTiles.push([i, j])
-        }
-      }
-    }
-
-    if (emptyTiles.length == 0) return [-1, -1]
-
-    return emptyTiles[Math.floor(Math.random() * emptyTiles.length)]
   }
 }
 
@@ -441,5 +419,46 @@ class Game2048 extends SmartContract {
     )
 
     this.gameDone.set(Bool(true))
+  }
+
+  @method async play(
+    pubkey: PublicKey,
+    signature: Signature,
+    x: Field,
+    y: Field
+  ) {
+    // 1. if the game is already finished, abort.
+    this.gameDone.requireEquals(Bool(false)); // precondition on this.gameDone
+
+    // 2. ensure that we know the private key associated to the public key
+    //    and that our public key is known to the zkApp
+
+    // ensure player owns the associated private key
+    signature.verify(pubkey, [x, y]).assertTrue();
+
+    // ensure player is valid
+    const player = this.player.getAndRequireEquals();
+    pubkey.equals(player).assertTrue();
+
+    // 3. get and deserialize the board
+    this.board.requireEquals(this.board.get()); // precondition that links this.board.get() to the actual on-chain state
+    let board = new Board(this.board.get());
+
+    // 5. update the board (and the state) with our move
+    x.equals(Field(0))
+      .or(x.equals(Field(1)))
+      .or(x.equals(Field(2)))
+      .assertTrue();
+    y.equals(Field(0))
+      .or(y.equals(Field(1)))
+      .or(y.equals(Field(2)))
+      .assertTrue();
+
+    // board.update(x, y, player);
+    this.board.set(board.serialize());
+
+    // 6. did I just win? If so, update the state as well
+    // const won = board.checkWinner();
+    // this.gameDone.set(won);
   }
 }
