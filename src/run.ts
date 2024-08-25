@@ -78,8 +78,8 @@ while (true) {
   }
 
   await randomEmptyTile(player, playerKey)
-  let b = zkApp.board.get();
-  new Board(b).printState();
+  let b = new Board(zkApp.board.get());
+  b.printState();
 
   if (zkApp.gameDone.get().toBoolean()) {
     console.log('Game Over')

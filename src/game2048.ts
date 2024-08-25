@@ -38,9 +38,11 @@ class OptionalBool extends Optional(Bool) {}
 
 class Board {
   board: UInt32[][];
+  ended: Bool;
+  score: UInt32;
 
   constructor(serializedBoard: Field) {
-    const bits = serializedBoard.toBits(BOARD_ROWS * BOARD_COLS * NUM_BITS);
+    const bits = serializedBoard.toBits(BOARD_ROWS * BOARD_COLS * NUM_BITS + 33);
     let board = [];
     for (let i = 0; i < BOARD_ROWS; i++) {
       let row = [];
@@ -51,15 +53,17 @@ class Board {
       }
       board.push(row);
     }
+    this.ended = bits[BOARD_ROWS * BOARD_COLS * NUM_BITS]
+    this.score = new UInt32(this.combineBits(bits.slice(BOARD_ROWS * BOARD_COLS * NUM_BITS + 1), 31))
     this.board = board;
   }
 
-  combineBits(bits: Bool[]): UInt32 {
+  combineBits(bits: Bool[], bitCount = NUM_BITS): UInt32 {
     let result = new UInt32(0)
-    for (let i = 0; i < NUM_BITS; i++) {
+    for (let i = 0; i < bitCount; i++) {
       result = result.add(
         Provable.if(
-          bits[NUM_BITS - i - 1],
+          bits[bitCount - i - 1],
           new UInt32(1 << i),
           UInt32.zero,
         )
@@ -68,13 +72,30 @@ class Board {
     return result
   }
 
-  numberToBits(num: UInt32): Bool[] {
+  numberToBits(num: UInt32, bitCount = NUM_BITS): Bool[] {
     let bits: Bool[] = [];
-    for (let i = NUM_BITS - 1; i >= 0; i--) {
+    for (let i = bitCount - 1; i >= 0; i--) {
       bits.push(num.greaterThanOrEqual(new UInt32(1 << i)))
       num = num.mod(1 << i)
     }
     return bits
+  }
+
+  // Support 1 - 17 which is the most number one can reach
+  pow2(num: UInt32): UInt32 {
+    let result = new UInt32(0)
+
+    for (let i = 1; i < 18; i++) {
+      result = result.add(
+        Provable.if(
+          new UInt32(i).equals(num),
+          new UInt32(1 << i),
+          UInt32.zero,
+        )
+      )
+    }
+
+    return result
   }
 
   serialize(): Field {
@@ -86,28 +107,13 @@ class Board {
         )
       }
     }
+
+    bits = bits.concat([
+      this.ended,
+      ...this.numberToBits(this.score, 31),
+    ])
+
     return Field.fromBits(bits);
-  }
-
-  newTile(r: Field, c: Field, num: UInt32) {
-    num.assertGreaterThan(new UInt32(0));
-
-    for (let i = 0; i < BOARD_ROWS; i++) {
-      for (let j = 0; j < BOARD_COLS; j++) {
-        // is this the cell the player wants to play?
-        const toUpdate = r.equals(new Field(i)).and(c.equals(new Field(j)));
-
-        // make sure we can add a tile there
-        toUpdate.implies(this.board[i][j].equals(UInt32.zero)).assertEquals(true);
-
-        // copy the board (or update if this is the cell the player wants to play)
-        this.board[i][j] = Provable.if(
-          toUpdate,
-          new UInt32(num),
-          this.board[i][j]
-        );
-      }
-    }
   }
 
   hasNextMove(): Bool {
@@ -142,6 +148,29 @@ class Board {
     return has
   }
 
+  newTile(r: Field, c: Field, num: UInt32) {
+    num.assertGreaterThan(new UInt32(0));
+
+    for (let i = 0; i < BOARD_ROWS; i++) {
+      for (let j = 0; j < BOARD_COLS; j++) {
+        // is this the cell the player wants to play?
+        const toUpdate = r.equals(new Field(i)).and(c.equals(new Field(j)));
+
+        // make sure we can add a tile there
+        toUpdate.implies(this.board[i][j].equals(UInt32.zero)).assertEquals(true);
+
+        // copy the board (or update if this is the cell the player wants to play)
+        this.board[i][j] = Provable.if(
+          toUpdate,
+          new UInt32(num),
+          this.board[i][j]
+        );
+      }
+    }
+
+    this.ended = this.hasNextMove().not()
+  }
+
   moveTile(c: [number, number], a: [number, number], breakLoop: Bool) {
     const curr = this.board[c[0]][c[1]]
     const adj = this.board[a[0]][a[1]]
@@ -149,6 +178,14 @@ class Board {
     const currEmpty = curr.equals(UInt32.zero)
     const adjEmpty = adj.equals(UInt32.zero)
     const eq = curr.equals(adj)
+
+    this.score = this.score.add(
+      Provable.if(
+        eq.and(currEmpty.not()).and(breakLoop.not()),
+        this.pow2(this.board[a[0]][a[1]].add(UInt32.one)),
+        UInt32.zero,
+      )
+    )
 
     this.board[a[0]][a[1]] = Provable.if(
       currEmpty.or(breakLoop),
@@ -192,6 +229,8 @@ class Board {
         breakLoop = new Bool(false)
       }
     }
+
+    this.ended = this.hasNextMove().not()
   }
 
   moveDown() {
@@ -207,6 +246,8 @@ class Board {
         breakLoop = new Bool(false)
       }
     }
+
+    this.ended = this.hasNextMove().not()
   }
 
   moveLeft() {
@@ -222,6 +263,8 @@ class Board {
         breakLoop = new Bool(false)
       }
     }
+
+    this.ended = this.hasNextMove().not()
   }
 
   moveRight() {
@@ -237,6 +280,8 @@ class Board {
         breakLoop = new Bool(false)
       }
     }
+
+    this.ended = this.hasNextMove().not()
   }
 
   // Debugging functions
@@ -253,6 +298,7 @@ class Board {
       row += ' |'
       console.log(row);
     }
+    console.log('Score:', Number(this.score.toBigint()))
     console.log('---\n');
   }
 
