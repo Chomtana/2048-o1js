@@ -87,49 +87,6 @@ while (true) {
   }
 }
 
-// // play
-// console.log('\n\n====== FIRST MOVE ======\n\n');
-// await makeMove(player1, player1Key, 0, 0);
-
-// // debug
-// b = zkApp.board.get();
-// new Board(b).printState();
-
-// // play
-// console.log('\n\n====== SECOND MOVE ======\n\n');
-// await makeMove(player2, player2Key, 1, 0);
-// // debug
-// b = zkApp.board.get();
-// new Board(b).printState();
-
-// // play
-// console.log('\n\n====== THIRD MOVE ======\n\n');
-// await makeMove(player1, player1Key, 1, 1);
-// // debug
-// b = zkApp.board.get();
-// new Board(b).printState();
-
-// // play
-// console.log('\n\n====== FOURTH MOVE ======\n\n');
-// await makeMove(player2, player2Key, 2, 1);
-
-// // debug
-// b = zkApp.board.get();
-// new Board(b).printState();
-
-// // play
-// console.log('\n\n====== FIFTH MOVE ======\n\n');
-// await makeMove(player1, player1Key, 2, 2);
-
-// // debug
-// b = zkApp.board.get();
-// new Board(b).printState();
-
-// let isNextPlayer2 = zkApp.nextIsPlayer2.get();
-
-// console.log('did someone win?', isNextPlayer2 ? 'Player 1!' : 'Player 2!');
-// // cleanup
-
 async function randomEmptyTile(
   player: PublicKey,
   playerKey: PrivateKey,
